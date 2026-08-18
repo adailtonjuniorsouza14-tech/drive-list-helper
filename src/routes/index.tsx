@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, ClipboardCheck, Plus, Truck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { CheckCircle2, ClipboardCheck, Loader2, Plus, Truck } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { PhotoField } from "@/components/checklist/PhotoField";
@@ -10,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Toaster } from "@/components/ui/sonner";
 import { sections, type Field } from "@/lib/checklist-config";
+import { saveChecklistToDrive } from "@/lib/checklist-drive.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -32,10 +34,23 @@ export const Route = createFileRoute("/")({
 
 type Value = string | File | null;
 
+async function fileToBase64(file: File) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < buf.length; i += 8192) {
+    bin += String.fromCharCode(...buf.subarray(i, i + 8192));
+  }
+  return btoa(bin);
+}
+
 function Index() {
   const [values, setValues] = useState<Record<string, Value>>({});
   const [extraPhotos, setExtraPhotos] = useState<(File | null)[]>([null, null]);
-  const [started] = useState(() => new Date());
+  const [started, setStarted] = useState<Date | null>(null);
+  const [saving, setSaving] = useState(false);
+  const save = useServerFn(saveChecklistToDrive);
+
+  useEffect(() => setStarted(new Date()), []);
 
   const set = (id: string, v: Value) => setValues((prev) => ({ ...prev, [id]: v }));
 
@@ -46,15 +61,71 @@ function Index() {
     [respondidos, values, inspecao.fields.length],
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (respondidos < inspecao.fields.length) {
       toast.error("Responda todos os itens da inspeção antes de finalizar.");
       return;
     }
-    toast.success("Check list finalizado", {
-      description: `Início ${started.toLocaleString("pt-BR")} · Término ${new Date().toLocaleString("pt-BR")}`,
-    });
+    const cliente = (values["cliente"] as string) || "";
+    if (!cliente) {
+      toast.error("Selecione o cliente para organizar a pasta no Google Drive.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const entries: { section: string; label: string; value: string }[] = [];
+      const fotos: { name: string; mimeType: string; dataBase64: string }[] = [];
+
+      for (const section of sections) {
+        for (const field of section.fields) {
+          const v = values[field.id];
+          if (field.type === "photo") {
+            if (v instanceof File) {
+              fotos.push({
+                name: field.label,
+                mimeType: v.type || "image/jpeg",
+                dataBase64: await fileToBase64(v),
+              });
+            }
+          } else if (typeof v === "string" && v.trim()) {
+            entries.push({ section: section.title, label: field.label, value: v });
+          }
+        }
+      }
+      for (const [i, photo] of extraPhotos.entries()) {
+        if (photo) {
+          fotos.push({
+            name: `Foto do carregamento ${i + 1}`,
+            mimeType: photo.type || "image/jpeg",
+            dataBase64: await fileToBase64(photo),
+          });
+        }
+      }
+
+      const result = await save({
+        data: {
+          cliente,
+          documento: (values["documento_transporte"] as string) || "",
+          placa: (values["placa_cavalo"] as string) || "",
+          aprovado,
+          startedAt: (started ?? new Date()).toISOString(),
+          finishedAt: new Date().toISOString(),
+          entries,
+          fotos,
+        },
+      });
+
+      toast.success("Check list salvo no Google Drive", { description: result.path });
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível salvar no Google Drive", {
+        description: err instanceof Error ? err.message : "Erro desconhecido",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -68,7 +139,7 @@ function Index() {
           <div>
             <h1 className="text-xl font-bold uppercase">Check list de carregamento</h1>
             <p className="text-sm opacity-80">
-              Início {started.toLocaleString("pt-BR")}
+              {started ? `Início ${started.toLocaleString("pt-BR")}` : "Iniciando…"}
             </p>
           </div>
         </div>
@@ -154,8 +225,9 @@ function Index() {
           <Button type="button" variant="outline" className="flex-1" onClick={() => setValues({})}>
             Limpar
           </Button>
-          <Button className="flex-1" onClick={handleSubmit}>
-            <ClipboardCheck className="size-4" /> Finalizar check list
+          <Button className="flex-1" onClick={handleSubmit} disabled={saving}>
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <ClipboardCheck className="size-4" />}
+            {saving ? "Salvando no Drive…" : "Finalizar e salvar no Drive"}
           </Button>
         </div>
       </div>
