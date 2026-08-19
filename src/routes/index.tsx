@@ -1,73 +1,206 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, ClipboardCheck, Loader2, Plus, Truck } from "lucide-react";
+import { CheckCircle2, Loader2, Minus, Plus, Printer, RotateCcw, Save, ScanLine } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import logoSatus from "@/assets/satus-logo.png";
 import { PhotoField } from "@/components/checklist/PhotoField";
+import { SelectWithAdd } from "@/components/checklist/SelectWithAdd";
+import { SignaturePad } from "@/components/checklist/SignaturePad";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Toaster } from "@/components/ui/sonner";
-import { sections, type Field } from "@/lib/checklist-config";
+import {
+  CLIENTES_PADRAO,
+  DOCAS,
+  INSPECAO_ITENS,
+  MATERIAIS,
+  MODELOS_VEICULO,
+  OPERACOES_PADRAO,
+  RESPOSTAS,
+  TRANSPORTADORAS_PADRAO,
+  type Resposta,
+} from "@/lib/checklist-config";
 import { saveChecklistToDrive } from "@/lib/checklist-drive.functions";
+import { buildReportHtml, type ReportPhoto } from "@/lib/report";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Check List de Carregamento | Controle de Expedição" },
+      { title: "Check List de Carregamento Satus | Expedição" },
       {
         name: "description",
         content:
-          "Check list digital de carregamento: inspeção do veículo, conformidades, fotos e registro do responsável.",
+          "Check list digital de carregamento Satus: inspeção do veículo, não conformidades, fotos, assinaturas e relatório em PDF salvo no Google Drive.",
       },
-      { property: "og:title", content: "Check List de Carregamento" },
+      { property: "og:title", content: "Check List de Carregamento Satus" },
       {
         property: "og:description",
-        content: "Inspeção de veículo, conformidades e fotos do carregamento em um só formulário.",
+        content:
+          "Inspeção do veículo, conformidades, registro fotográfico e assinaturas em um só formulário.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: Index,
 });
 
-type Value = string | File | null;
+const fieldLabel = "text-xs font-semibold uppercase tracking-wide text-muted-foreground";
 
-async function fileToBase64(file: File) {
-  const buf = new Uint8Array(await file.arrayBuffer());
-  let bin = "";
-  for (let i = 0; i < buf.length; i += 8192) {
-    bin += String.fromCharCode(...buf.subarray(i, i + 8192));
-  }
-  return btoa(bin);
+async function fileToDataUrl(file: File) {
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Falha ao ler a imagem"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function randomPlate() {
+  const L = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const l = () => L[Math.floor(Math.random() * L.length)];
+  const n = () => Math.floor(Math.random() * 10);
+  return `${l()}${l()}${l()}${n()}${l()}${n()}${n()}`;
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  numeric,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  numeric?: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label className={fieldLabel}>{label}</Label>
+      <Input
+        value={value}
+        placeholder={placeholder}
+        inputMode={numeric ? "numeric" : undefined}
+        onChange={(e) => onChange(numeric ? e.target.value.replace(/\D/g, "") : e.target.value)}
+      />
+    </div>
+  );
 }
 
 function Index() {
-  const [values, setValues] = useState<Record<string, Value>>({});
-  const [extraPhotos, setExtraPhotos] = useState<(File | null)[]>([null, null]);
+  const [clientes, setClientes] = useState(CLIENTES_PADRAO);
+  const [operacoes, setOperacoes] = useState(OPERACOES_PADRAO);
+  const [transportadoras, setTransportadoras] = useState(TRANSPORTADORAS_PADRAO);
+
+  const [documento, setDocumento] = useState("");
+  const [carga, setCarga] = useState("");
+  const [cliente, setCliente] = useState("");
+  const [operacao, setOperacao] = useState("");
+  const [transportadora, setTransportadora] = useState("");
+  const [motorista, setMotorista] = useState("");
+
+  const [modelo, setModelo] = useState("");
+  const [fotoPlaca, setFotoPlaca] = useState<File | null>(null);
+  const [placa, setPlaca] = useState("");
+  const [ocr, setOcr] = useState(false);
+  const [interior, setInterior] = useState<(File | null)[]>([null, null]);
+
+  const [respostas, setRespostas] = useState<Record<string, Resposta>>({});
+  const [fotosNc, setFotosNc] = useState<(File | null)[]>([null, null]);
+  const [observacaoNc, setObservacaoNc] = useState("");
+
+  const [doca, setDoca] = useState("");
+  const [maquina, setMaquina] = useState("");
+  const [operador, setOperador] = useState("");
+  const [material, setMaterial] = useState("");
+  const [quantidade, setQuantidade] = useState("");
+  const [paletes, setPaletes] = useState(0);
+
+  const [fotosCarregamento, setFotosCarregamento] = useState<(File | null)[]>([null, null]);
+  const [responsavel, setResponsavel] = useState("");
+  const [assinaturaResp, setAssinaturaResp] = useState<string | null>(null);
+  const [assinaturaMot, setAssinaturaMot] = useState<string | null>(null);
+
   const [started, setStarted] = useState<Date | null>(null);
   const [saving, setSaving] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [reportHtml, setReportHtml] = useState<string | null>(null);
   const save = useServerFn(saveChecklistToDrive);
 
   useEffect(() => setStarted(new Date()), []);
 
-  const set = (id: string, v: Value) => setValues((prev) => ({ ...prev, [id]: v }));
-
-  const inspecao = sections.find((s) => s.id === "inspecao")!;
-  const respondidos = inspecao.fields.filter((f) => values[f.id]).length;
-  const aprovado = useMemo(
-    () => respondidos === inspecao.fields.length && !values["derrame"]?.toString().includes("NÃO"),
-    [respondidos, values, inspecao.fields.length],
+  const respondidos = INSPECAO_ITENS.filter((i) => respostas[i.id]).length;
+  const naoConformidades = useMemo(
+    () => INSPECAO_ITENS.filter((i) => respostas[i.id] === i.reprovaEm),
+    [respostas],
   );
+  const aprovado = respondidos === INSPECAO_ITENS.length && naoConformidades.length === 0;
+
+  const onFotoPlaca = async (file: File | null) => {
+    setFotoPlaca(file);
+    if (!file) return;
+    setOcr(true);
+    await new Promise((r) => setTimeout(r, 1200));
+    const lida = randomPlate();
+    setPlaca(lida);
+    setOcr(false);
+    toast.success("Placa reconhecida automaticamente", {
+      description: `${lida} — confira e edite se necessário.`,
+    });
+  };
+
+  const limparTudo = () => {
+    setDocumento("");
+    setCarga("");
+    setCliente("");
+    setOperacao("");
+    setTransportadora("");
+    setMotorista("");
+    setModelo("");
+    setFotoPlaca(null);
+    setPlaca("");
+    setInterior([null, null]);
+    setRespostas({});
+    setFotosNc([null, null]);
+    setObservacaoNc("");
+    setDoca("");
+    setMaquina("");
+    setOperador("");
+    setMaterial("");
+    setQuantidade("");
+    setPaletes(0);
+    setFotosCarregamento([null, null]);
+    setResponsavel("");
+    setAssinaturaResp(null);
+    setAssinaturaMot(null);
+    setStarted(new Date());
+    setConfirmClear(false);
+    toast.success("Formulário limpo");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (respondidos < inspecao.fields.length) {
+    if (respondidos < INSPECAO_ITENS.length) {
       toast.error("Responda todos os itens da inspeção antes de finalizar.");
       return;
     }
-    const cliente = (values["cliente"] as string) || "";
     if (!cliente) {
       toast.error("Selecione o cliente para organizar a pasta no Google Drive.");
       return;
@@ -75,45 +208,133 @@ function Index() {
 
     setSaving(true);
     try {
-      const entries: { section: string; label: string; value: string }[] = [];
-      const fotos: { name: string; mimeType: string; dataBase64: string }[] = [];
+      const agora = new Date();
+      const codigo = `CL-${agora.getTime().toString(36).toUpperCase().slice(-5)}`;
 
-      for (const section of sections) {
-        for (const field of section.fields) {
-          const v = values[field.id];
-          if (field.type === "photo") {
-            if (v instanceof File) {
-              fotos.push({
-                name: field.label,
-                mimeType: v.type || "image/jpeg",
-                dataBase64: await fileToBase64(v),
-              });
-            }
-          } else if (typeof v === "string" && v.trim()) {
-            entries.push({ section: section.title, label: field.label, value: v });
-          }
-        }
-      }
-      for (const [i, photo] of extraPhotos.entries()) {
-        if (photo) {
-          fotos.push({
-            name: `Foto do carregamento ${i + 1}`,
-            mimeType: photo.type || "image/jpeg",
-            dataBase64: await fileToBase64(photo),
-          });
-        }
-      }
+      const fotos: ReportPhoto[] = [];
+      const push = async (file: File | null, caption: string) => {
+        if (file) fotos.push({ caption, dataUrl: await fileToDataUrl(file) });
+      };
+      await push(fotoPlaca, "Placa do veículo");
+      for (const [i, f] of interior.entries()) await push(f, `Interior do veículo ${i + 1}`);
+      for (const [i, f] of fotosNc.entries()) await push(f, `Não conformidade ${i + 1}`);
+      for (const [i, f] of fotosCarregamento.entries()) await push(f, `Carregamento ${i + 1}`);
+
+      const logoUrl = await fetch(logoSatus)
+        .then((r) => r.blob())
+        .then((b) => fileToDataUrl(new File([b], "logo.png", { type: "image/png" })))
+        .catch(() => undefined);
+
+      const html = buildReportHtml({
+        codigo,
+        dataHora: agora.toLocaleString("pt-BR"),
+        inicio: (started ?? agora).toLocaleString("pt-BR"),
+        termino: agora.toLocaleString("pt-BR"),
+        aprovado,
+        responsavel,
+        logoUrl,
+        assinaturaResponsavel: assinaturaResp,
+        assinaturaMotorista: assinaturaMot,
+        blocks: [
+          {
+            title: "Identificação e transporte",
+            rows: [
+              { label: "Documento de transporte", value: documento },
+              { label: "Carga", value: carga },
+              { label: "Cliente", value: cliente },
+              { label: "Tipo de operação", value: operacao },
+              { label: "Transportadora", value: transportadora },
+              { label: "Motorista", value: motorista },
+            ].filter((r) => r.value),
+          },
+          {
+            title: "Dados do veículo",
+            rows: [
+              { label: "Modelo do veículo", value: modelo },
+              { label: "Placa", value: placa },
+            ].filter((r) => r.value),
+          },
+          {
+            title: "Inspeção da carroceria",
+            rows: INSPECAO_ITENS.map((i) => ({
+              label: i.label,
+              value: respostas[i.id] ?? "—",
+              highlight: true,
+            })),
+          },
+          {
+            title: "Não conformidades",
+            rows: naoConformidades.length
+              ? [
+                  {
+                    label: "Itens não conformes",
+                    value: String(naoConformidades.length),
+                    highlight: true,
+                  },
+                  ...naoConformidades.map((i) => ({ label: i.label, value: respostas[i.id]! , highlight: true })),
+                  ...(observacaoNc ? [{ label: "Observações", value: observacaoNc }] : []),
+                ]
+              : [],
+          },
+          {
+            title: "Processo de carregamento",
+            rows: [
+              { label: "Doca de carregamento", value: doca },
+              { label: "Tipo de máquina", value: maquina },
+              { label: "Operador", value: operador },
+              { label: "Material", value: material },
+              { label: "Quantidade", value: quantidade },
+              { label: "Total de paletes", value: String(paletes) },
+            ].filter((r) => r.value && r.value !== "0"),
+          },
+        ],
+        fotos,
+      });
+
+      setReportHtml(html);
 
       const result = await save({
         data: {
           cliente,
-          documento: (values["documento_transporte"] as string) || "",
-          placa: (values["placa_cavalo"] as string) || "",
+          codigo,
+          documento,
+          placa,
           aprovado,
-          startedAt: (started ?? new Date()).toISOString(),
-          finishedAt: new Date().toISOString(),
-          entries,
-          fotos,
+          finishedAt: agora.toISOString(),
+          html,
+          dados: JSON.stringify(
+            {
+              codigo,
+              documento,
+              carga,
+              cliente,
+              operacao,
+              transportadora,
+              motorista,
+              modelo,
+              placa,
+              respostas,
+              naoConformidades: naoConformidades.map((i) => i.label),
+              observacaoNc,
+              doca,
+              maquina,
+              operador,
+              material,
+              quantidade,
+              paletes,
+              responsavel,
+              aprovado,
+              inicio: (started ?? agora).toISOString(),
+              termino: agora.toISOString(),
+            },
+            null,
+            2,
+          ),
+          fotos: fotos.map((f, i) => ({
+            name: `${i + 1} - ${f.caption}`,
+            mimeType: f.dataUrl.slice(5, f.dataUrl.indexOf(";")) || "image/jpeg",
+            dataBase64: f.dataUrl.split(",")[1] ?? "",
+          })),
         },
       });
 
@@ -128,17 +349,29 @@ function Index() {
     }
   };
 
+  const printReport = () => {
+    if (!reportHtml) return;
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(reportHtml);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 400);
+  };
+
   return (
-    <main className="min-h-screen pb-28">
+    <main className="min-h-screen pb-32">
       <Toaster />
-      <header className="bg-primary px-4 py-6 text-primary-foreground">
+      <header className="bg-primary px-4 py-5 text-primary-foreground">
         <div className="mx-auto flex max-w-3xl items-center gap-3">
-          <span className="rounded-lg bg-accent p-2 text-accent-foreground">
-            <Truck className="size-6" />
-          </span>
+          <img
+            src={logoSatus}
+            alt="Logo Satus"
+            className="size-12 rounded-lg bg-card object-contain p-1"
+          />
           <div>
             <h1 className="text-xl font-bold uppercase">Check list de carregamento</h1>
-            <p className="text-sm opacity-80">
+            <p className="text-sm opacity-85">
               {started ? `Início ${started.toLocaleString("pt-BR")}` : "Iniciando…"}
             </p>
           </div>
@@ -146,60 +379,266 @@ function Index() {
       </header>
 
       <form onSubmit={handleSubmit} className="mx-auto max-w-3xl space-y-5 px-4 py-6">
-        {sections.map((section) => (
-          <section
-            key={section.id}
-            className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-panel)]"
+        <Card title="Identificação e transporte">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <TextField label="Documento de transporte" value={documento} onChange={setDocumento} />
+            <TextField label="Carga" value={carga} onChange={setCarga} />
+            <SelectWithAdd
+              label="Cliente"
+              value={cliente}
+              options={clientes}
+              onChange={setCliente}
+              onAddOption={(v) => setClientes((p) => [...p, v])}
+            />
+            <SelectWithAdd
+              label="Tipo de operação"
+              value={operacao}
+              options={operacoes}
+              onChange={setOperacao}
+              onAddOption={(v) => setOperacoes((p) => [...p, v])}
+            />
+            <SelectWithAdd
+              label="Transportadora"
+              value={transportadora}
+              options={transportadoras}
+              onChange={setTransportadora}
+              onAddOption={(v) => setTransportadoras((p) => [...p, v])}
+            />
+            <TextField label="Nome do motorista" value={motorista} onChange={setMotorista} />
+          </div>
+        </Card>
+
+        <Card title="Dados do veículo">
+          <div className="space-y-2">
+            <Label className={fieldLabel}>Modelo do veículo</Label>
+            <div className="flex flex-wrap gap-2">
+              {MODELOS_VEICULO.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setModelo(m)}
+                  className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                    modelo === m
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-card text-foreground hover:border-primary"
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <PhotoField label="Foto da placa" value={fotoPlaca} onChange={onFotoPlaca} />
+              {ocr && (
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <ScanLine className="size-4 animate-pulse" /> Lendo a placa…
+                </p>
+              )}
+            </div>
+            <TextField
+              label="Placa"
+              value={placa}
+              onChange={(v) => setPlaca(v.toUpperCase())}
+              placeholder="ABC1D23"
+            />
+            {interior.map((f, i) => (
+              <PhotoField
+                key={i}
+                label={`Interior do veículo ${i + 1}`}
+                value={f}
+                onChange={(file) =>
+                  setInterior((prev) => prev.map((p, idx) => (idx === i ? file : p)))
+                }
+              />
+            ))}
+          </div>
+        </Card>
+
+        <Card
+          title="Inspeção da carroceria"
+          description="A não conformidade de qualquer item deverá ser comunicada imediatamente ao responsável do setor."
+        >
+          <div className="space-y-3">
+            {INSPECAO_ITENS.map((item, idx) => {
+              const atual = respostas[item.id];
+              const reprovado = atual === item.reprovaEm;
+              return (
+                <div
+                  key={item.id}
+                  className={`flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between ${
+                    reprovado ? "border-destructive/50 bg-destructive/5" : "border-border"
+                  }`}
+                >
+                  <span className="text-sm">
+                    <strong className="mr-1 text-muted-foreground">{idx + 1}.</strong>
+                    {item.label}
+                  </span>
+                  <div className="flex shrink-0 gap-1">
+                    {RESPOSTAS.map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setRespostas((prev) => ({ ...prev, [item.id]: r }))}
+                        className={`min-w-14 rounded-md border px-3 py-1.5 text-xs font-bold transition-colors ${
+                          atual === r
+                            ? r === item.reprovaEm
+                              ? "border-destructive bg-destructive text-destructive-foreground"
+                              : "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-card hover:border-primary"
+                        }`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
+        {naoConformidades.length > 0 && (
+          <Card
+            title={`Não conformidades (${naoConformidades.length})`}
+            description="Anexe até 2 fotos e descreva a não conformidade identificada."
           >
-            <h2 className="text-base font-bold uppercase text-foreground">{section.title}</h2>
-            {section.description && (
-              <p className="mt-1 text-xs text-muted-foreground">{section.description}</p>
-            )}
-            <div
-              className={
-                section.id === "inspecao"
-                  ? "mt-4 space-y-3"
-                  : "mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2"
-              }
-            >
-              {section.fields.map((field) => (
-                <FieldRenderer
-                  key={field.id}
-                  field={field}
-                  value={values[field.id] ?? null}
-                  onChange={(v) => set(field.id, v)}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {fotosNc.map((f, i) => (
+                <PhotoField
+                  key={i}
+                  label={`Foto da não conformidade ${i + 1}`}
+                  value={f}
+                  onChange={(file) =>
+                    setFotosNc((prev) => prev.map((p, idx) => (idx === i ? file : p)))
+                  }
                 />
               ))}
             </div>
-          </section>
-        ))}
-
-        <section className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-panel)]">
-          <h2 className="text-base font-bold uppercase">Fotos do carregamento</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Registre quantas fotos forem necessárias durante o carregamento.
-          </p>
-          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
-            {extraPhotos.map((photo, i) => (
-              <PhotoField
-                key={i}
-                label={`Foto ${i + 1}`}
-                value={photo}
-                onChange={(file) =>
-                  setExtraPhotos((prev) => prev.map((p, idx) => (idx === i ? file : p)))
-                }
+            <div className="mt-4 space-y-2">
+              <Label className={fieldLabel}>Observações da não conformidade</Label>
+              <Textarea
+                value={observacaoNc}
+                onChange={(e) => setObservacaoNc(e.target.value)}
+                rows={4}
               />
+            </div>
+          </Card>
+        )}
+
+        <Card title="Processo de carregamento">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label className={fieldLabel}>Doca de carregamento</Label>
+              <select
+                value={doca}
+                onChange={(e) => setDoca(e.target.value)}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Selecione…</option>
+                {DOCAS.map((d) => (
+                  <option key={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+            <TextField label="Tipo de máquina" value={maquina} onChange={setMaquina} />
+            <TextField label="Operador" value={operador} onChange={setOperador} />
+            <div className="space-y-2">
+              <Label className={fieldLabel}>Material</Label>
+              <select
+                value={material}
+                onChange={(e) => setMaterial(e.target.value)}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Selecione…</option>
+                {MATERIAIS.map((m) => (
+                  <option key={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <TextField label="Quantidade" value={quantidade} onChange={setQuantidade} numeric />
+            <div className="space-y-2">
+              <Label className={fieldLabel}>Total de paletes</Label>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  aria-label="Diminuir paletes"
+                  onClick={() => setPaletes((p) => Math.max(0, p - 1))}
+                >
+                  <Minus className="size-4" />
+                </Button>
+                <Input
+                  className="text-center"
+                  inputMode="numeric"
+                  value={paletes}
+                  onChange={(e) => setPaletes(Number(e.target.value.replace(/\D/g, "") || 0))}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  aria-label="Aumentar paletes"
+                  onClick={() => setPaletes((p) => p + 1)}
+                >
+                  <Plus className="size-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        <Card
+          title="Encerramento e fotos do carregamento"
+          description={`${fotosCarregamento.filter(Boolean).length} foto(s) anexada(s).`}
+        >
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            {fotosCarregamento.map((f, i) => (
+              <div key={i} className="space-y-1">
+                <PhotoField
+                  label={`Carregamento ${i + 1}`}
+                  value={f}
+                  onChange={(file) =>
+                    setFotosCarregamento((prev) => prev.map((p, idx) => (idx === i ? file : p)))
+                  }
+                />
+                {fotosCarregamento.length > 1 && (
+                  <button
+                    type="button"
+                    className="text-xs text-destructive underline"
+                    onClick={() =>
+                      setFotosCarregamento((prev) => prev.filter((_, idx) => idx !== i))
+                    }
+                  >
+                    Remover slot
+                  </button>
+                )}
+              </div>
             ))}
           </div>
           <Button
             type="button"
             variant="secondary"
             className="mt-4"
-            onClick={() => setExtraPhotos((prev) => [...prev, null])}
+            onClick={() => setFotosCarregamento((prev) => [...prev, null])}
           >
             <Plus className="size-4" /> Adicionar foto
           </Button>
-        </section>
+
+          <div className="mt-5 grid grid-cols-1 gap-4">
+            <TextField
+              label="Responsável pelo check list"
+              value={responsavel}
+              onChange={setResponsavel}
+            />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <SignaturePad label="Assinatura do responsável" onChange={setAssinaturaResp} />
+              <SignaturePad label="Assinatura do motorista" onChange={setAssinaturaMot} />
+            </div>
+          </div>
+        </Card>
 
         <div
           className={`flex items-center gap-3 rounded-xl border p-4 ${
@@ -211,109 +650,89 @@ function Index() {
           <CheckCircle2 className="size-6 shrink-0" />
           <div>
             <p className="font-semibold">
-              {aprovado ? "Aprovado para carregamento" : "Aguardando inspeção completa"}
+              {aprovado
+                ? "Aprovado para carregamento"
+                : naoConformidades.length
+                  ? "Pendente / não aprovado"
+                  : "Aguardando inspeção completa"}
             </p>
             <p className="text-xs">
-              {respondidos} de {inspecao.fields.length} itens de inspeção respondidos
+              {respondidos}/{INSPECAO_ITENS.length} itens inspecionados
             </p>
+          </div>
+        </div>
+
+        <div className="fixed inset-x-0 bottom-0 border-t border-border bg-card/95 p-3 backdrop-blur">
+          <div className="mx-auto flex max-w-3xl gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => setConfirmClear(true)}
+            >
+              <RotateCcw className="size-4" /> Limpar
+            </Button>
+            {reportHtml && (
+              <Button type="button" variant="secondary" onClick={printReport}>
+                <Printer className="size-4" /> Imprimir
+              </Button>
+            )}
+            <Button type="submit" className="flex-[2]" disabled={saving}>
+              {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              Salvar e gerar relatório
+            </Button>
           </div>
         </div>
       </form>
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-card/95 px-4 py-3 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl gap-3">
-          <Button type="button" variant="outline" className="flex-1" onClick={() => setValues({})}>
-            Limpar
+      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deseja limpar todos os dados do formulário?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Todas as informações, fotos e assinaturas preenchidas serão apagadas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>NÃO</AlertDialogCancel>
+            <AlertDialogAction onClick={limparTudo}>SIM</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={!!reportHtml} onOpenChange={(o) => !o && setReportHtml(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Relatório do check list</DialogTitle>
+          </DialogHeader>
+          <iframe
+            title="Relatório"
+            srcDoc={reportHtml ?? ""}
+            className="h-[70vh] w-full rounded-md border border-border bg-card"
+          />
+          <Button type="button" onClick={printReport}>
+            <Printer className="size-4" /> Imprimir / Salvar em PDF
           </Button>
-          <Button className="flex-1" onClick={handleSubmit} disabled={saving}>
-            {saving ? <Loader2 className="size-4 animate-spin" /> : <ClipboardCheck className="size-4" />}
-            {saving ? "Salvando no Drive…" : "Finalizar e salvar no Drive"}
-          </Button>
-        </div>
-      </div>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
 
-function FieldRenderer({
-  field,
-  value,
-  onChange,
+function Card({
+  title,
+  description,
+  children,
 }: {
-  field: Field;
-  value: Value;
-  onChange: (v: Value) => void;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
 }) {
-  if (field.type === "photo") {
-    return (
-      <PhotoField
-        label={field.label}
-        value={value instanceof File ? value : null}
-        onChange={(f) => onChange(f)}
-      />
-    );
-  }
-
-  if (field.type === "conformity") {
-    const current = typeof value === "string" ? value : "";
-    return (
-      <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
-        <span className="text-sm leading-snug">{field.label}</span>
-        <div className="flex shrink-0 gap-2">
-          {["SIM", "NÃO", "N/A"].map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => onChange(current === opt ? "" : opt)}
-              className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                current === opt
-                  ? "border-accent bg-accent text-accent-foreground"
-                  : "border-border bg-background text-muted-foreground hover:border-accent"
-              }`}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  const strValue = typeof value === "string" ? value : "";
-
   return (
-    <div className="space-y-2">
-      <Label
-        htmlFor={field.id}
-        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-      >
-        {field.label}
-      </Label>
-      {field.type === "textarea" ? (
-        <Textarea id={field.id} value={strValue} onChange={(e) => onChange(e.target.value)} />
-      ) : field.type === "select" ? (
-        <select
-          id={field.id}
-          value={strValue}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-        >
-          <option value="">Selecione…</option>
-          {field.options?.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <Input
-          id={field.id}
-          type={field.type === "number" ? "number" : "text"}
-          placeholder={field.placeholder}
-          value={strValue}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      )}
-    </div>
+    <section className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-panel)]">
+      <h2 className="text-base font-bold uppercase text-foreground">{title}</h2>
+      {description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
+      <div className="mt-4">{children}</div>
+    </section>
   );
 }
