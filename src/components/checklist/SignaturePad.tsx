@@ -1,4 +1,4 @@
-import { Eraser } from "lucide-react";
+import { Eraser, Lock, LockOpen } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,8 @@ export function SignaturePad({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const [hasInk, setHasInk] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -36,6 +38,7 @@ export function SignaturePad({
   };
 
   const start = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!unlocked || locked) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
@@ -46,7 +49,7 @@ export function SignaturePad({
   };
 
   const move = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!drawing.current) return;
+    if (!drawing.current || locked) return;
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     const { x, y } = pos(e);
@@ -59,6 +62,7 @@ export function SignaturePad({
     if (!drawing.current) return;
     drawing.current = false;
     onChange(canvasRef.current?.toDataURL("image/png") ?? null);
+    setLocked(true);
   };
 
   const clear = () => {
@@ -67,6 +71,8 @@ export function SignaturePad({
     if (!canvas || !ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasInk(false);
+    setLocked(false);
+    setUnlocked(false);
     onChange(null);
   };
 
@@ -76,9 +82,22 @@ export function SignaturePad({
         <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {label}
         </Label>
-        <Button type="button" variant="ghost" size="sm" onClick={clear} disabled={!hasInk}>
-          <Eraser className="size-4" /> Limpar
-        </Button>
+        <div className="flex items-center gap-1">
+          {!hasInk && (
+            <Button
+              type="button"
+              variant={unlocked ? "secondary" : "default"}
+              size="sm"
+              onClick={() => setUnlocked((v) => !v)}
+            >
+              {unlocked ? <LockOpen className="size-4" /> : <Lock className="size-4" />}
+              {unlocked ? "Liberado" : "Desbloquear"}
+            </Button>
+          )}
+          <Button type="button" variant="ghost" size="sm" onClick={clear} disabled={!hasInk}>
+            <Eraser className="size-4" /> Refazer
+          </Button>
+        </div>
       </div>
       <canvas
         ref={canvasRef}
@@ -86,9 +105,17 @@ export function SignaturePad({
         onPointerMove={move}
         onPointerUp={end}
         onPointerLeave={end}
-        className="h-32 w-full touch-none rounded-lg border border-dashed border-border bg-card"
+        className={`h-32 w-full touch-none rounded-lg border border-dashed bg-card ${
+          unlocked && !locked ? "border-primary cursor-crosshair" : "border-border"
+        } ${!unlocked || locked ? "opacity-70" : ""}`}
       />
-      {!hasInk && <p className="text-xs text-muted-foreground">Assine no quadro acima.</p>}
+      <p className="text-xs text-muted-foreground">
+        {locked
+          ? "Assinatura registrada e bloqueada. Use Refazer para assinar novamente."
+          : unlocked
+            ? "Assine no quadro acima. Ao concluir, a assinatura será bloqueada."
+            : "Bloqueado: toque em Desbloquear para liberar a assinatura."}
+      </p>
     </div>
   );
 }
