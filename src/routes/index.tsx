@@ -37,6 +37,8 @@ import {
 } from "@/lib/checklist-config";
 import { saveChecklistToDrive } from "@/lib/checklist-drive.functions";
 import { buildReportHtml, type ReportPhoto } from "@/lib/report";
+import { htmlToPdfBlob, blobToBase64 } from "@/lib/pdf";
+import { enqueueUpload, flushQueue, readQueue } from "@/lib/upload-queue";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -145,6 +147,17 @@ function Index() {
   const save = useServerFn(saveChecklistToDrive);
 
   useEffect(() => setStarted(new Date()), []);
+
+  useEffect(() => {
+    const run = async () => {
+      if (!navigator.onLine || readQueue().length === 0) return;
+      const { sent } = await flushQueue((payload) => save({ data: payload as never }));
+      if (sent > 0) toast.success(`${sent} check list pendente(s) enviado(s) ao Google Drive`);
+    };
+    void run();
+    window.addEventListener("online", run);
+    return () => window.removeEventListener("online", run);
+  }, [save]);
 
   const respondidos = INSPECAO_ITENS.filter((i) => respostas[i.id]).length;
   const naoConformidades = useMemo(
@@ -293,15 +306,20 @@ function Index() {
 
       setReportHtml(html);
 
-      const result = await save({
-        data: {
+      const numeroCarga = (carga || documento || codigo).replace(/[^\w-]+/g, "_");
+      const pdfName = `Checklist_Carregamento_${numeroCarga}.pdf`;
+      const pdfBlob = await htmlToPdfBlob(html, pdfName);
+      const pdfBase64 = await blobToBase64(pdfBlob);
+
+      const payload = {
           cliente,
           codigo,
           documento,
           placa,
           aprovado,
           finishedAt: agora.toISOString(),
-          html,
+          pdfBase64,
+          pdfName,
           dados: JSON.stringify(
             {
               codigo,
@@ -335,10 +353,26 @@ function Index() {
             mimeType: f.dataUrl.slice(5, f.dataUrl.indexOf(";")) || "image/jpeg",
             dataBase64: f.dataUrl.split(",")[1] ?? "",
           })),
-        },
-      });
+      };
 
-      toast.success("Check list salvo no Google Drive", { description: result.path });
+      if (!navigator.onLine) {
+        const pending = enqueueUpload(payload);
+        toast.success("Sem conexão: PDF salvo na fila", {
+          description: `${pending} envio(s) pendente(s). Enviaremos automaticamente ao voltar a internet.`,
+        });
+        return;
+      }
+
+      try {
+        const result = await save({ data: payload });
+        toast.success("Check list salvo em PDF no Google Drive", { description: result.path });
+      } catch (err) {
+        const pending = enqueueUpload(payload);
+        console.error(err);
+        toast.warning("Envio falhou: PDF guardado na fila", {
+          description: `${pending} envio(s) pendente(s). Tentaremos novamente automaticamente.`,
+        });
+      }
     } catch (err) {
       console.error(err);
       toast.error("Não foi possível salvar no Google Drive", {
