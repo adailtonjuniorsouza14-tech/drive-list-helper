@@ -210,12 +210,40 @@ function Index() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (respondidos < INSPECAO_ITENS.length) {
-      toast.error("Responda todos os itens da inspeção antes de finalizar.");
-      return;
+    const faltando: string[] = [];
+    const req = (ok: unknown, nome: string) => {
+      if (!ok) faltando.push(nome);
+    };
+    req(documento.trim(), "Documento de transporte");
+    req(carga.trim(), "Carga");
+    req(cliente, "Cliente");
+    req(operacao, "Tipo de operação");
+    req(transportadora, "Transportadora");
+    req(motorista.trim(), "Nome do motorista");
+    req(modelo, "Modelo do veículo");
+    req(fotoPlaca, "Foto da placa");
+    req(placa.trim(), "Placa");
+    interior.forEach((f, i) => req(f, `Interior do veículo ${i + 1}`));
+    req(respondidos === INSPECAO_ITENS.length, "Todos os itens da inspeção");
+    if (naoConformidades.length > 0) {
+      req(fotosNc.some(Boolean), "Foto da não conformidade");
+      req(observacaoNc.trim(), "Observações da não conformidade");
     }
-    if (!cliente) {
-      toast.error("Selecione o cliente para organizar a pasta no Google Drive.");
+    req(doca, "Doca de carregamento");
+    req(maquina.trim(), "Tipo de máquina");
+    req(operador.trim(), "Operador");
+    req(material, "Material");
+    req(quantidade.trim(), "Quantidade");
+    req(paletes > 0, "Total de paletes");
+    req(fotosCarregamento.some(Boolean), "Fotos do carregamento");
+    req(responsavel.trim(), "Responsável pelo check list");
+    req(assinaturaResp, "Assinatura do responsável");
+    req(assinaturaMot, "Assinatura do motorista");
+
+    if (faltando.length > 0) {
+      toast.error(`Preencha todos os campos obrigatórios (${faltando.length} pendente(s))`, {
+        description: faltando.slice(0, 6).join(", ") + (faltando.length > 6 ? "…" : ""),
+      });
       return;
     }
 
