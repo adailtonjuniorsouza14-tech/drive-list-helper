@@ -16,10 +16,10 @@ export interface ReportData {
   aprovado: boolean;
   blocks: ReportBlock[];
   fotos: ReportPhoto[];
-  assinaturaResponsavel?: string | null;
-  assinaturaMotorista?: string | null;
+  assinaturaResponsavel?: string | null | undefined;
+  assinaturaMotorista?: string | null | undefined;
   responsavel: string;
-  logoUrl?: string;
+  logoUrl?: string | undefined;
 }
 
 const esc = (s: string) =>
