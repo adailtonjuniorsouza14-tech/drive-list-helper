@@ -8,7 +8,8 @@ const schema = z.object({
   placa: z.string().default(""),
   aprovado: z.boolean(),
   finishedAt: z.string(),
-  html: z.string().min(1),
+  pdfBase64: z.string().min(1),
+  pdfName: z.string().min(1),
   dados: z.string().min(1),
   fotos: z
     .array(z.object({ name: z.string(), mimeType: z.string(), dataBase64: z.string() }))
@@ -55,10 +56,10 @@ export const saveChecklistToDrive = createServerFn({ method: "POST" })
     }
 
     const doc = await uploadFile({
-      name: `Relatório - ${nomeRegistro}.html`,
-      mimeType: "text/html",
+      name: safe(data.pdfName).endsWith(".pdf") ? safe(data.pdfName) : `${safe(data.pdfName)}.pdf`,
+      mimeType: "application/pdf",
       parentId: folderId,
-      data: data.html,
+      data: Uint8Array.from(atob(data.pdfBase64), (c) => c.charCodeAt(0)),
     });
 
     await uploadFile({
