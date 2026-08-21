@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, Loader2, Minus, Plus, Printer, RotateCcw, Save, ScanLine } from "lucide-react";
+import { CheckCircle2, Loader2, Minus, Plus, RotateCcw, Save, ScanLine } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -411,16 +411,6 @@ function Index() {
     }
   };
 
-  const printReport = () => {
-    if (!reportHtml) return;
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(reportHtml);
-    win.document.close();
-    win.focus();
-    setTimeout(() => win.print(), 400);
-  };
-
   return (
     <main className="min-h-screen pb-32">
       <Toaster />
@@ -734,11 +724,6 @@ function Index() {
             >
               <RotateCcw className="size-4" /> Limpar
             </Button>
-            {reportHtml && (
-              <Button type="button" variant="secondary" onClick={printReport}>
-                <Printer className="size-4" /> Imprimir
-              </Button>
-            )}
             <Button type="submit" className="flex-[2]" disabled={saving}>
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
               Salvar e gerar relatório
@@ -772,9 +757,6 @@ function Index() {
             srcDoc={reportHtml ?? ""}
             className="h-[70vh] w-full rounded-md border border-border bg-card"
           />
-          <Button type="button" onClick={printReport}>
-            <Printer className="size-4" /> Imprimir / Salvar em PDF
-          </Button>
         </DialogContent>
       </Dialog>
     </main>

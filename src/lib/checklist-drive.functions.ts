@@ -23,11 +23,25 @@ export const saveChecklistToDrive = createServerFn({ method: "POST" })
     const { ensureFolderPath, uploadFile } = await import("./drive.server");
 
     const d = new Date(data.finishedAt);
-    const ano = String(d.getFullYear());
-    const mes = String(d.getMonth() + 1).padStart(2, "0");
-    const dia = String(d.getDate()).padStart(2, "0");
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    })
+      .formatToParts(d)
+      .reduce<Record<string, string>>((acc, p) => {
+        acc[p.type] = p.value;
+        return acc;
+      }, {});
+    const ano = parts["year"]!;
+    const mes = parts["month"]!;
+    const dia = parts["day"]!;
     const safe = (s: string) => s.replace(/[\\/:*?"<>|]/g, "-").trim() || "SEM-NOME";
-    const hora = `${String(d.getHours()).padStart(2, "0")}h${String(d.getMinutes()).padStart(2, "0")}`;
+    const hora = `${parts["hour"] === "24" ? "00" : parts["hour"]}h${parts["minute"]}`;
 
     const nomeRegistro = safe(
       [`${dia}-${mes}-${ano} ${hora}`, data.documento, data.placa, data.codigo]
