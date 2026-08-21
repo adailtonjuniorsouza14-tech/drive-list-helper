@@ -51,7 +51,6 @@ export async function htmlToPdfBlob(html: string, fileName: string): Promise<Blo
           width: 794,
           height,
         },
-        pagebreak: { mode: ["css", "legacy"] },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
       })
       .from(host)
