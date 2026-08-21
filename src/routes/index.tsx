@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, Loader2, Minus, Plus,, RotateCcw, Save, ScanLine } from "lucide-react";
+import { CheckCircle2, Loader2, Minus, Plus, RotateCcw, Save, ScanLine } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
