@@ -734,11 +734,6 @@ function Index() {
             >
               <RotateCcw className="size-4" /> Limpar
             </Button>
-            {reportHtml && (
-              <Button type="button" variant="secondary" onClick={printReport}>
-                <Printer className="size-4" /> Imprimir
-              </Button>
-            )}
             <Button type="submit" className="flex-[2]" disabled={saving}>
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
               Salvar e gerar relatório
