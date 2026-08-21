@@ -12,4 +12,10 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  vite: {
+    resolve: {
+      // html2canvas não suporta cores oklch; html2canvas-pro sim.
+      alias: { html2canvas: "html2canvas-pro" },
+    },
+  },
 });
