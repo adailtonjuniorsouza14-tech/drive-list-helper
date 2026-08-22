@@ -410,19 +410,23 @@ function Index() {
         toast.success("Sem conexão: PDF salvo na fila", {
           description: `${pending} envio(s) pendente(s). Enviaremos automaticamente ao voltar a internet.`,
         });
+        resetForm();
         return;
       }
 
       try {
         const result = await save({ data: payload });
         toast.success("Check list salvo em PDF no Google Drive", { description: result.path });
+        resetForm();
       } catch (err) {
         const pending = enqueueUpload(payload);
         console.error(err);
         toast.warning("Envio falhou: PDF guardado na fila", {
           description: `${pending} envio(s) pendente(s). Tentaremos novamente automaticamente.`,
         });
+        resetForm();
       }
+
     } catch (err) {
       console.error(err);
       toast.error("Não foi possível salvar no Google Drive", {
