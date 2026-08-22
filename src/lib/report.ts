@@ -61,12 +61,14 @@ export function buildReportHtml(d: ReportData) {
 <style>
 @page{size:A4;margin:14mm}
 *{box-sizing:border-box}
-body{font-family:Arial,Helvetica,sans-serif;color:#14261a;margin:0;padding:18px;background:#fff;font-size:12px}
-.sheet{max-width:190mm;margin:0 auto}
-header.top{display:flex;align-items:center;gap:14px;border-bottom:3px solid #1a7a3c;padding-bottom:10px}
-header.top img{height:52px}
-header.top h1{font-size:16px;margin:0;color:#1a7a3c;text-transform:uppercase}
+body{font-family:Arial,Helvetica,sans-serif;color:#14261a;margin:0;padding:0;background:#fff;font-size:12px}
+.sheet{width:100%;margin:0 auto}
+.banner{width:100%;display:block}
+.banner img{width:100%;display:block}
+header.top{padding:10px 18px 8px;border-bottom:3px solid #1a7a3c}
+header.top h1{font-size:15px;margin:0;color:#1a7a3c;text-transform:uppercase}
 header.top p{margin:2px 0 0;font-size:11px;color:#555}
+.body{padding:0 18px 18px}
 .status{margin:12px 0;padding:10px 14px;border-radius:6px;font-weight:bold;text-align:center;letter-spacing:.04em;color:#fff}
 .ok{background:#1a7a3c}.nok{background:#b3261e}
 .stamps{display:flex;gap:10px;font-size:11px;margin-bottom:12px}
