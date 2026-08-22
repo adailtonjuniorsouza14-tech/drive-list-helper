@@ -89,12 +89,17 @@ figcaption{border-top:1px solid #cfcfcf;padding:5px 6px;font-size:10.5px;color:#
 .sign-box img{max-height:66px;max-width:100%}
 .sign span{display:block;font-size:10.5px;color:#444;margin-top:4px;text-transform:uppercase}
 footer{margin-top:18px;border-top:1px solid #ddd;padding-top:6px;font-size:10px;color:#777;text-align:center}
-.avoid-break{page-break-inside:avoid}
+.avoid-break{page-break-inside:avoid;break-inside:avoid}
+.block{page-break-inside:avoid;break-inside:avoid}
+section.block h2{page-break-after:avoid}
+.signs{page-break-inside:avoid;break-inside:avoid}
 @media print{body{padding:0}}
 </style></head><body><div class="sheet">
-<header class="top">${d.logoUrl ? `<img src="${d.logoUrl}" alt="Satus">` : ""}
-<div><h1>Check list de carregamento — ${esc(d.dataHora)} — ${esc(d.codigo)}</h1>
-<p>Satus · qualidade &amp; confiança</p></div></header>
+<div class="banner">${d.logoUrl ? `<img src="${d.logoUrl}" alt="Satus — qualidade e confiança">` : ""}</div>
+<header class="top">
+<h1>Check list de carregamento — ${esc(d.dataHora)} — ${esc(d.codigo)}</h1>
+<p>Satus · qualidade &amp; confiança</p></header>
+<div class="body">
 <div class="status ${d.aprovado ? "ok" : "nok"}">${
     d.aprovado ? "APROVADO PARA CARREGAMENTO" : "PENDENTE / NÃO APROVADO"
   }</div>
@@ -108,5 +113,5 @@ ${fotos}
     d.assinaturaMotorista,
   )}</div>
 <footer>Documento gerado eletronicamente · Código ${esc(d.codigo)}</footer>
-</div></body></html>`;
+</div></div></body></html>`;
 }
