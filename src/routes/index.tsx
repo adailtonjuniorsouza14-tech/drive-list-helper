@@ -73,12 +73,6 @@ async function fileToDataUrl(file: File) {
   });
 }
 
-function randomPlate() {
-  const L = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const l = () => L[Math.floor(Math.random() * L.length)];
-  const n = () => Math.floor(Math.random() * 10);
-  return `${l()}${l()}${l()}${n()}${l()}${n()}${n()}`;
-}
 
 function TextField({
   label,
