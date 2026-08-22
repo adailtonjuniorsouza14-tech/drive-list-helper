@@ -170,14 +170,29 @@ function Index() {
     setFotoPlaca(file);
     if (!file) return;
     setOcr(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    const lida = randomPlate();
-    setPlaca(lida);
-    setOcr(false);
-    toast.success("Placa reconhecida automaticamente", {
-      description: `${lida} — confira e edite se necessário.`,
-    });
+    try {
+      const { readPlateFromImage } = await import("@/lib/plate-ocr");
+      const lida = await readPlateFromImage(file);
+      if (lida) {
+        setPlaca(lida);
+        toast.success("Placa reconhecida automaticamente", {
+          description: `${lida} — confira e edite se necessário.`,
+        });
+      } else {
+        toast.warning("Não foi possível ler a placa", {
+          description: "Digite a placa manualmente ou tire outra foto mais nítida.",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.warning("Leitura automática indisponível", {
+        description: "Digite a placa manualmente.",
+      });
+    } finally {
+      setOcr(false);
+    }
   };
+
 
   const limparTudo = () => {
     setDocumento("");
