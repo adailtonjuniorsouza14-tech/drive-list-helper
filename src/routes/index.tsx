@@ -194,7 +194,7 @@ function Index() {
   };
 
 
-  const limparTudo = () => {
+  const resetForm = () => {
     setDocumento("");
     setCarga("");
     setCliente("");
@@ -218,10 +218,17 @@ function Index() {
     setResponsavel("");
     setAssinaturaResp(null);
     setAssinaturaMot(null);
+    setReportHtml(null);
     setStarted(new Date());
     setConfirmClear(false);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const limparTudo = () => {
+    resetForm();
     toast.success("Formulário limpo");
   };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
