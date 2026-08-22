@@ -35,7 +35,7 @@ export async function htmlToPdfBlob(html: string, fileName: string): Promise<Blo
 
     const blob: Blob = await html2pdf()
       .set({
-        margin: [8, 8, 8, 8],
+        margin: [0, 0, 0, 0],
         filename: fileName,
         image: { type: "jpeg", quality: 0.92 },
         html2canvas: {
