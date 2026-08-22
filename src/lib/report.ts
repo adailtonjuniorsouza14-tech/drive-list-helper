@@ -41,7 +41,7 @@ export function buildReportHtml(d: ReportData) {
     .join("");
 
   const fotos = d.fotos.length
-    ? `<section class="block avoid-break"><h2>Registro fotográfico</h2><div class="grid">${d.fotos
+    ? `<section class="photos"><h2>Registro fotográfico</h2><div class="grid">${d.fotos
         .map(
           (f, i) =>
             `<figure><img src="${f.dataUrl}" alt="${esc(f.caption)}"><figcaption>FOTO ${
