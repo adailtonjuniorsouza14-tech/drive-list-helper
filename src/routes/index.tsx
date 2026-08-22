@@ -73,12 +73,6 @@ async function fileToDataUrl(file: File) {
   });
 }
 
-function randomPlate() {
-  const L = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const l = () => L[Math.floor(Math.random() * L.length)];
-  const n = () => Math.floor(Math.random() * 10);
-  return `${l()}${l()}${l()}${n()}${l()}${n()}${n()}`;
-}
 
 function TextField({
   label,
@@ -170,16 +164,31 @@ function Index() {
     setFotoPlaca(file);
     if (!file) return;
     setOcr(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    const lida = randomPlate();
-    setPlaca(lida);
-    setOcr(false);
-    toast.success("Placa reconhecida automaticamente", {
-      description: `${lida} — confira e edite se necessário.`,
-    });
+    try {
+      const { readPlateFromImage } = await import("@/lib/plate-ocr");
+      const lida = await readPlateFromImage(file);
+      if (lida) {
+        setPlaca(lida);
+        toast.success("Placa reconhecida automaticamente", {
+          description: `${lida} — confira e edite se necessário.`,
+        });
+      } else {
+        toast.warning("Não foi possível ler a placa", {
+          description: "Digite a placa manualmente ou tire outra foto mais nítida.",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.warning("Leitura automática indisponível", {
+        description: "Digite a placa manualmente.",
+      });
+    } finally {
+      setOcr(false);
+    }
   };
 
-  const limparTudo = () => {
+
+  const resetForm = () => {
     setDocumento("");
     setCarga("");
     setCliente("");
@@ -203,10 +212,17 @@ function Index() {
     setResponsavel("");
     setAssinaturaResp(null);
     setAssinaturaMot(null);
+    setReportHtml(null);
     setStarted(new Date());
     setConfirmClear(false);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const limparTudo = () => {
+    resetForm();
     toast.success("Formulário limpo");
   };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -388,19 +404,23 @@ function Index() {
         toast.success("Sem conexão: PDF salvo na fila", {
           description: `${pending} envio(s) pendente(s). Enviaremos automaticamente ao voltar a internet.`,
         });
+        resetForm();
         return;
       }
 
       try {
         const result = await save({ data: payload });
         toast.success("Check list salvo em PDF no Google Drive", { description: result.path });
+        resetForm();
       } catch (err) {
         const pending = enqueueUpload(payload);
         console.error(err);
         toast.warning("Envio falhou: PDF guardado na fila", {
           description: `${pending} envio(s) pendente(s). Tentaremos novamente automaticamente.`,
         });
+        resetForm();
       }
+
     } catch (err) {
       console.error(err);
       toast.error("Não foi possível salvar no Google Drive", {
