@@ -79,9 +79,9 @@ th,td{border:1px solid #d9d9d9;padding:6px 8px;font-size:11.5px;vertical-align:t
 th{width:62%;text-align:left;font-weight:normal;background:#fff}
 td.resp{text-align:right;width:38%}
 td.resp span{display:inline-block;min-width:52px;text-align:center;border:1px solid #1a7a3c;border-radius:4px;padding:2px 8px;font-weight:bold;background:#eef7f0}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
-figure{margin:0;border:1px solid #cfcfcf;border-radius:4px;overflow:hidden;page-break-inside:avoid}
-figure img{width:100%;height:160px;object-fit:cover;display:block}
+.grid{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+figure{margin:0;width:calc(50% - 5px);border:1px solid #cfcfcf;border-radius:4px;overflow:hidden;page-break-inside:avoid;break-inside:avoid}
+figure img{width:100%;height:150px;object-fit:cover;display:block}
 figcaption{border-top:1px solid #cfcfcf;padding:5px 6px;font-size:10.5px;color:#444;background:#fafafa}
 .signs{display:flex;gap:24px;margin-top:22px}
 .sign{flex:1;text-align:center}
