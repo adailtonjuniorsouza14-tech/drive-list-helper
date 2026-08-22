@@ -277,9 +277,9 @@ function Index() {
       for (const [i, f] of fotosNc.entries()) await push(f, `Não conformidade ${i + 1}`);
       for (const [i, f] of fotosCarregamento.entries()) await push(f, `Carregamento ${i + 1}`);
 
-      const logoUrl = await fetch(logoSatus)
+      const logoUrl = await fetch(bannerSatus)
         .then((r) => r.blob())
-        .then((b) => fileToDataUrl(new File([b], "logo.png", { type: "image/png" })))
+        .then((b) => fileToDataUrl(new File([b], "banner.png", { type: "image/png" })))
         .catch(() => undefined);
 
       const html = buildReportHtml({
