@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import logoSatus from "@/assets/satus-logo.png";
+import bannerSatus from "@/assets/satus-banner.png";
 import { PhotoField } from "@/components/checklist/PhotoField";
 import { SelectWithAdd } from "@/components/checklist/SelectWithAdd";
 import { SignaturePad } from "@/components/checklist/SignaturePad";
