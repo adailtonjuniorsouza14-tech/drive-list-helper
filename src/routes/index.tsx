@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import logoSatus from "@/assets/satus-logo.png";
+import bannerSatus from "@/assets/satus-banner.png";
 import { PhotoField } from "@/components/checklist/PhotoField";
 import { SelectWithAdd } from "@/components/checklist/SelectWithAdd";
 import { SignaturePad } from "@/components/checklist/SignaturePad";
@@ -277,9 +278,9 @@ function Index() {
       for (const [i, f] of fotosNc.entries()) await push(f, `Não conformidade ${i + 1}`);
       for (const [i, f] of fotosCarregamento.entries()) await push(f, `Carregamento ${i + 1}`);
 
-      const logoUrl = await fetch(logoSatus)
+      const logoUrl = await fetch(bannerSatus)
         .then((r) => r.blob())
-        .then((b) => fileToDataUrl(new File([b], "logo.png", { type: "image/png" })))
+        .then((b) => fileToDataUrl(new File([b], "banner.png", { type: "image/png" })))
         .catch(() => undefined);
 
       const html = buildReportHtml({
