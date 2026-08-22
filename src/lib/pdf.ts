@@ -53,7 +53,7 @@ export async function htmlToPdfBlob(html: string, fileName: string): Promise<Blo
         },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         pagebreak: { mode: ["css", "legacy"], avoid: ["figure", ".block", ".signs", "tr"] },
-      })
+      } as Parameters<ReturnType<typeof html2pdf>["set"]>[0])
       .from(host)
       .outputPdf("blob");
     return blob;
