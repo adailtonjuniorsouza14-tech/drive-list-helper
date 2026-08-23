@@ -1,19 +1,15 @@
-const GATEWAY = "https://connector-gateway.lovable.dev/google_drive";
+import { callAsAppUser } from "@/integrations/lovable/appUserConnector";
 
-function headers() {
-  const lovable = process.env["LOVABLE_API_KEY"];
-  const conn = process.env["GOOGLE_DRIVE_API_KEY"];
-  if (!lovable || !conn) throw new Error("Conexão com o Google Drive não configurada.");
-  return {
-    Authorization: `Bearer ${lovable}`,
-    "X-Connection-Api-Key": conn,
-  };
-}
+export const GATEWAY_BASE_URL = "https://connector-gateway.lovable.dev";
+export const DRIVE_CONNECTOR_ID = "google_drive";
 
-async function driveFetch(path: string, init?: RequestInit) {
-  const res = await fetch(`${GATEWAY}${path}`, {
-    ...init,
-    headers: { ...headers(), ...(init?.headers ?? {}) },
+async function driveFetch(connectionKey: string, path: string, init?: RequestInit) {
+  const res = await callAsAppUser({
+    gatewayBaseUrl: GATEWAY_BASE_URL,
+    connectionAPIKey: connectionKey,
+    connectorId: DRIVE_CONNECTOR_ID,
+    path,
+    init,
   });
   if (!res.ok) {
     const body = await res.text();
@@ -25,7 +21,11 @@ async function driveFetch(path: string, init?: RequestInit) {
 
 const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
-export async function ensureFolder(name: string, parentId?: string): Promise<string> {
+export async function ensureFolder(
+  connectionKey: string,
+  name: string,
+  parentId?: string,
+): Promise<string> {
   const q = [
     "mimeType='application/vnd.google-apps.folder'",
     "trashed=false",
@@ -33,12 +33,13 @@ export async function ensureFolder(name: string, parentId?: string): Promise<str
     `'${parentId ?? "root"}' in parents`,
   ].join(" and ");
   const res = await driveFetch(
+    connectionKey,
     `/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=1`,
   );
   const data = (await res.json()) as { files?: { id: string }[] };
   if (data.files?.length) return data.files[0]!.id;
 
-  const created = await driveFetch(`/drive/v3/files?fields=id`, {
+  const created = await driveFetch(connectionKey, `/drive/v3/files?fields=id`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -50,24 +51,29 @@ export async function ensureFolder(name: string, parentId?: string): Promise<str
   return ((await created.json()) as { id: string }).id;
 }
 
-export async function ensureFolderPath(segments: string[]): Promise<string> {
+export async function ensureFolderPath(
+  connectionKey: string,
+  segments: string[],
+): Promise<string> {
   let parent: string | undefined;
   for (const segment of segments) {
-    parent = await ensureFolder(segment, parent);
+    parent = await ensureFolder(connectionKey, segment, parent);
   }
   return parent!;
 }
 
-export async function uploadFile(opts: {
-  name: string;
-  mimeType: string;
-  parentId: string;
-  data: Uint8Array | string;
-}): Promise<{ id: string; webViewLink?: string }> {
+export async function uploadFile(
+  connectionKey: string,
+  opts: {
+    name: string;
+    mimeType: string;
+    parentId: string;
+    data: Uint8Array | string;
+  },
+): Promise<{ id: string; webViewLink?: string }> {
   const boundary = `lovable${crypto.randomUUID()}`;
   const meta = JSON.stringify({ name: opts.name, parents: [opts.parentId] });
-  const bytes =
-    typeof opts.data === "string" ? new TextEncoder().encode(opts.data) : opts.data;
+  const bytes = typeof opts.data === "string" ? new TextEncoder().encode(opts.data) : opts.data;
 
   const pre = new TextEncoder().encode(
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n` +
@@ -79,10 +85,14 @@ export async function uploadFile(opts: {
   body.set(bytes, pre.length);
   body.set(post, pre.length + bytes.length);
 
-  const res = await driveFetch(`/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink`, {
-    method: "POST",
-    headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
-    body,
-  });
+  const res = await driveFetch(
+    connectionKey,
+    `/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink`,
+    {
+      method: "POST",
+      headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
+      body,
+    },
+  );
   return (await res.json()) as { id: string; webViewLink?: string };
 }
